@@ -13,7 +13,8 @@ from .schemas import (
     DepartmentResponse,
     AppointmentCreate,
     AppointmentResponse,
-    AppointmentDetailResponse
+    AppointmentDetailResponse,
+    AppointmentFinish
 )
 
 
@@ -175,6 +176,7 @@ def arrive_appointment(
 @app.post("/appointments/{appointment_id}/finish", response_model=AppointmentResponse)
 def finish_appointment(
     appointment_id: int,
+    finish_data: AppointmentFinish,
     db: Session = Depends(get_db)
 ):
     appointment = db.query(Appointment).filter(
@@ -195,6 +197,8 @@ def finish_appointment(
 
     appointment.status = "COMPLETED"
     appointment.finished_at = datetime.now()
+    appointment.visit_type = finish_data.visit_type
+    appointment.reason = finish_data.reason
 
     db.commit()
     db.refresh(appointment)
@@ -300,5 +304,34 @@ def get_next_patient(
             status_code=404,
             detail="No patients waiting"
         )
+
+    return appointment
+
+@app.post("/doctors/{doctor_id}/start-next")
+def start_next_patient(
+    doctor_id: int,
+    db: Session = Depends(get_db)
+):
+    appointment = (
+        db.query(Appointment)
+        .filter(
+            Appointment.doctor_id == doctor_id,
+            Appointment.status == "WAITING"
+        )
+        .order_by(Appointment.appointment_time)
+        .first()
+    )
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No waiting patients"
+        )
+
+    appointment.status = "IN_PROGRESS"
+    appointment.started_at = datetime.now()
+
+    db.commit()
+    db.refresh(appointment)
 
     return appointment

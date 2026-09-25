@@ -32,15 +32,10 @@ class AppointmentCreate(BaseModel):
     patient_id: int
     doctor_id: int
     department_id: int
-    appointment_id: datetime
-    status: str
-
-class AppointmentCreate(BaseModel):
-    patient_id: int
-    doctor_id: int
-    department_id: int
     appointment_time: datetime
     status: str
+    visit_type: str | None
+    reason: str | None
 
 class AppointmentResponse(BaseModel):
     id: int
@@ -49,6 +44,8 @@ class AppointmentResponse(BaseModel):
     department_id: int
     appointment_time: datetime
     status: str
+    visit_type: str | None
+    reason: str | None
 
     class Config:
         from_attributes = True
@@ -74,3 +71,7 @@ class AppointmentDetailResponse(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     duration_seconds: int | None
+
+class AppointmentFinish(BaseModel):
+    visit_type: str
+    reason: str

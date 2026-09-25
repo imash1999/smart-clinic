@@ -34,3 +34,5 @@ class Appointment(Base):
     status = Column(String(20))
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
+    visit_type = Column(String(100))
+    reason = Column(String(255))
