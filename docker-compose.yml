@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: smart-clinic-postgres
+    environment:
+      POSTGRES_USER: clinic
+      POSTGRES_PASSWORD: clinic123
+      POSTGRES_DB: clinic
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: smart-clinic-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://clinic:clinic123@postgres:5432/clinic
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
