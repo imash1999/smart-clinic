@@ -14,7 +14,8 @@ from .schemas import (
     AppointmentCreate,
     AppointmentResponse,
     AppointmentDetailResponse,
-    AppointmentFinish
+    AppointmentFinish,
+    AppointmentFinishResponse
 )
 
 
@@ -173,7 +174,7 @@ def arrive_appointment(
 
     return appointment
 
-@app.post("/appointments/{appointment_id}/finish", response_model=AppointmentResponse)
+@app.post("/appointments/{appointment_id}/finish", response_model=AppointmentFinishResponse)
 def finish_appointment(
     appointment_id: int,
     finish_data: AppointmentFinish,
@@ -184,10 +185,7 @@ def finish_appointment(
     ).first()
 
     if appointment is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Appointment not found"
-        )
+        raise HTTPException(status_code=404, detail="Appointment not found")
 
     if appointment.status != "IN_PROGRESS":
         raise HTTPException(
@@ -203,7 +201,21 @@ def finish_appointment(
     db.commit()
     db.refresh(appointment)
 
-    return appointment
+    # Ищем следующего WAITING-пациента этого врача
+    next_patient = (
+        db.query(Appointment)
+        .filter(
+            Appointment.doctor_id == appointment.doctor_id,
+            Appointment.status == "WAITING"
+        )
+        .order_by(Appointment.appointment_time)
+        .first()
+    )
+
+    return {
+        "finished": appointment,
+        "next_patient": next_patient
+    }
 
 @app.get("/appointments/{appointment_id}", response_model=AppointmentDetailResponse)
 def get_appointment(
@@ -236,7 +248,9 @@ def get_appointment(
         "status": appointment.status,
         "started_at": appointment.started_at,
         "finished_at": appointment.finished_at,
-        "duration_seconds": duration_seconds
+        "duration_seconds": duration_seconds,
+        "visit_type": appointment.visit_type,
+        "reason": appointment.reason
     }
 
 @app.post("/appointments/{appointment_id}/waiting", response_model=AppointmentResponse)
@@ -330,6 +344,63 @@ def start_next_patient(
 
     appointment.status = "IN_PROGRESS"
     appointment.started_at = datetime.now()
+
+    db.commit()
+    db.refresh(appointment)
+
+    return appointment
+
+@app.post("/appointments/{appointment_id}/cancel", response_model=AppointmentResponse)
+def cancel_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db)
+):
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id
+    ).first()
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Appointment not found"
+        )
+
+    if appointment.status != "BOOKED":
+        raise HTTPException(
+            status_code=400,
+            detail="Only BOOKED appointments can be cancelled"
+        )
+
+    appointment.status = "CANCELLED"
+
+    db.commit()
+    db.refresh(appointment)
+
+    return appointment
+
+
+@app.post("/appointments/{appointment_id}/no-show", response_model=AppointmentResponse)
+def no_show_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db)
+):
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id
+    ).first()
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Appointment not found"
+        )
+
+    if appointment.status != "BOOKED":
+        raise HTTPException(
+            status_code=400,
+            detail="Only BOOKED appointments can be marked as NO_SHOW"
+        )
+
+    appointment.status = "NO_SHOW"
 
     db.commit()
     db.refresh(appointment)

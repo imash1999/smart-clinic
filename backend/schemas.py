@@ -44,6 +44,8 @@ class AppointmentResponse(BaseModel):
     department_id: int
     appointment_time: datetime
     status: str
+    started_at: datetime | None
+    finished_at: datetime | None
     visit_type: str | None
     reason: str | None
 
@@ -60,7 +62,6 @@ class DepartmentResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
 class AppointmentDetailResponse(BaseModel):
     id: int
     patient_id: int
@@ -71,7 +72,16 @@ class AppointmentDetailResponse(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     duration_seconds: int | None
+    visit_type: str | None
+    reason: str | None
+
+    class Config:
+        from_attributes = True
 
 class AppointmentFinish(BaseModel):
     visit_type: str
     reason: str
+
+class AppointmentFinishResponse(BaseModel):
+    finished: AppointmentResponse
+    next_patient: AppointmentResponse | None
