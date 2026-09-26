@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI,HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+from .kafka_producer import publish_event
 
 from .database import Base, engine, get_db
 from .models import Patient,Doctor,Department,Appointment
@@ -200,6 +201,21 @@ def finish_appointment(
 
     db.commit()
     db.refresh(appointment)
+        # Публикуем событие в Kafka
+    publish_event(
+        topic="appointment-events",
+        event={
+            "event_type": "appointment_finished",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "started_at": appointment.started_at,
+            "finished_at": appointment.finished_at,
+            "visit_type": appointment.visit_type,
+            "reason": appointment.reason,
+        }
+    )
 
     # Ищем следующего WAITING-пациента этого врача
     next_patient = (
