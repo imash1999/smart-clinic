@@ -142,6 +142,18 @@ def start_appointment(
     appointment.status = "IN_PROGRESS"
     appointment.started_at = datetime.now()
 
+    publish_event(
+        topic="consultation-events",
+        event={
+            "event_type": "appointment_started",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "started_at": appointment.started_at,
+        }
+    )
+
     db.commit()
     db.refresh(appointment)
 
@@ -172,6 +184,17 @@ def arrive_appointment(
 
     db.commit()
     db.refresh(appointment)
+    
+    publish_event(
+        topic="patient-events",
+        event={
+            "event_type": "patient_arrived",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+        }
+    )
 
     return appointment
 
@@ -203,7 +226,7 @@ def finish_appointment(
     db.refresh(appointment)
         # Публикуем событие в Kafka
     publish_event(
-        topic="appointment-events",
+        topic="consultation-events",
         event={
             "event_type": "appointment_finished",
             "appointment_id": appointment.id,
@@ -292,6 +315,19 @@ def waiting_appointment(
 
     appointment.status = "WAITING"
 
+    publish_event(
+        topic="queue-events",
+        event={
+            "event_type": "appointment_waiting",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
+
+
     db.commit()
     db.refresh(appointment)
 
@@ -364,6 +400,18 @@ def start_next_patient(
     db.commit()
     db.refresh(appointment)
 
+    publish_event(
+        topic="consultation-events",
+        event={
+            "event_type": "appointment_started",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "started_at": appointment.started_at,
+        }
+    )
+
     return appointment
 
 @app.post("/appointments/{appointment_id}/cancel", response_model=AppointmentResponse)
@@ -388,6 +436,18 @@ def cancel_appointment(
         )
 
     appointment.status = "CANCELLED"
+
+    publish_event(
+        topic="appointment-events",
+        event={
+            "event_type": "appointment_cancelled",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
 
     db.commit()
     db.refresh(appointment)
@@ -417,6 +477,18 @@ def no_show_appointment(
         )
 
     appointment.status = "NO_SHOW"
+
+    publish_event(
+        topic="appointment-events",
+        event={
+            "event_type": "appointment_no_show",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
 
     db.commit()
     db.refresh(appointment)
