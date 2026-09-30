@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Clinic — Регистрация</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Smart Clinic</h1>
+        <p class="subtitle">Регистрация пациента</p>
+
+        <form id="registrationForm">
+
+            <label>ФИО</label>
+            <input
+                type="text"
+                id="name"
+                placeholder="Введите ваше имя"
+                required
+            >
+
+            <label>Телефон</label>
+            <input
+                type="text"
+                id="phone"
+                placeholder="+998901234567"
+                required
+            >
+
+            <label>Адрес</label>
+            <input
+                type="text"
+                id="address"
+                placeholder="Ташкент"
+                required
+            >
+
+            <label>Серия паспорта</label>
+            <input
+                type="text"
+                id="passport"
+                placeholder="AA1234567"
+                required
+            >
+
+            <label>Что вас беспокоит?</label>
+            <textarea
+                id="complaint"
+                placeholder="Например: болит сердце"
+                required
+            ></textarea>
+
+            <button type="submit">
+                Зарегистрироваться
+            </button>
+        </form>
+
+        <div id="message"></div>
+
+        <div id="result" class="result hidden">
+            <h2>Регистрация завершена</h2>
+
+            <p>
+                <strong>Пациент:</strong>
+                <span id="resultName"></span>
+            </p>
+
+            <p>
+                <strong>Номер очереди:</strong>
+                <span id="resultQueue"></span>
+            </p>
+
+            <p>
+                <strong>Специалист:</strong>
+                <span id="resultSpecialty"></span>
+            </p>
+
+            <p>
+                <strong>Статус:</strong>
+                <span id="resultStatus"></span>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>

@@ -1,8 +1,10 @@
 from fastapi import Depends, FastAPI,HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import datetime
 from .kafka_producer import publish_event
 
+from .routing import determine_specialty
 from .database import Base, engine, get_db
 from .models import Patient,Doctor,Department,Appointment
 from .schemas import (
@@ -16,7 +18,9 @@ from .schemas import (
     AppointmentResponse,
     AppointmentDetailResponse,
     AppointmentFinish,
-    AppointmentFinishResponse
+    AppointmentFinishResponse,
+    RegistrationCreate,
+    RegistrationResponse
 )
 
 
@@ -24,6 +28,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Smart Clinic API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5500"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def home():
@@ -31,13 +42,12 @@ def home():
 
 
 @app.post("/patients", response_model=PatientResponse)
-def create_patient(
-    patient: PatientCreate,
-    db: Session = Depends(get_db)
-):
+def create_patient(patient: PatientCreate, db: Session = Depends(get_db)):
     new_patient = Patient(
         name=patient.name,
-        phone=patient.phone
+        phone=patient.phone,
+        address=patient.address,
+        passport_series=patient.passport_series
     )
 
     db.add(new_patient)
@@ -50,6 +60,106 @@ def create_patient(
 def get_patients(db: Session = Depends(get_db)):
     patients = db.query(Patient).all()
     return patients
+
+@app.post("/registration", response_model=RegistrationResponse)
+def registration(
+    registration: RegistrationCreate,
+    db: Session = Depends(get_db)
+):
+    # 1. Определяем специальность по жалобе пациента
+    specialty = determine_specialty(registration.complaint)
+
+    # 2. Ищем врача этой специальности
+    doctor = (
+        db.query(Doctor)
+        .filter(Doctor.specialty == specialty)
+        .first()
+    )
+
+    if doctor is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No doctor found for specialty: {specialty}"
+        )
+
+    # 3. Ищем отделение с соответствующим названием
+    department_names = {
+        "Therapist": "Therapy",
+        "Cardiologist": "Cardiology",
+        "Neurologist": "Neurology"
+    }
+
+    department_name = department_names.get(specialty)
+
+    if department_name is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No department configured for specialty: {specialty}"
+        )
+
+    department = (
+        db.query(Department)
+        .filter(Department.name == department_name)
+        .first()
+    )
+
+    if department is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Department not found: {department_name}"
+        )
+
+    # 4. Создаём пациента
+    new_patient = Patient(
+        name=registration.name,
+        phone=registration.phone,
+        address=registration.address,
+        passport_series=registration.passport_series
+    )
+
+    db.add(new_patient)
+    db.flush()
+
+    # 5. Получаем следующий номер очереди этого врача
+    last_appointment = (
+        db.query(Appointment)
+        .filter(
+            Appointment.doctor_id == doctor.id,
+            Appointment.queue_number.isnot(None)
+        )
+        .order_by(Appointment.queue_number.desc())
+        .first()
+    )
+
+    if last_appointment and last_appointment.queue_number:
+        queue_number = last_appointment.queue_number + 1
+    else:
+        queue_number = 1
+
+    # 6. Создаём запись на приём
+    new_appointment = Appointment(
+        patient_id=new_patient.id,
+        doctor_id=doctor.id,
+        department_id=department.id,
+        appointment_time=datetime.now(),
+        status="BOOKED",
+        queue_number=queue_number,
+        complaint=registration.complaint
+    )
+
+    db.add(new_appointment)
+
+    # 7. Сохраняем пациента и запись
+    db.commit()
+
+    db.refresh(new_patient)
+    db.refresh(new_appointment)
+
+    return {
+        "patient": new_patient,
+        "appointment": new_appointment,
+        "specialty": specialty
+    }
 
 @app.post("/doctors", response_model=DoctorResponse)
 def create_doctor(
@@ -142,6 +252,18 @@ def start_appointment(
     appointment.status = "IN_PROGRESS"
     appointment.started_at = datetime.now()
 
+    publish_event(
+        topic="consultation-events",
+        event={
+            "event_type": "appointment_started",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "started_at": appointment.started_at,
+        }
+    )
+
     db.commit()
     db.refresh(appointment)
 
@@ -172,6 +294,17 @@ def arrive_appointment(
 
     db.commit()
     db.refresh(appointment)
+    
+    publish_event(
+        topic="patient-events",
+        event={
+            "event_type": "patient_arrived",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+        }
+    )
 
     return appointment
 
@@ -203,7 +336,7 @@ def finish_appointment(
     db.refresh(appointment)
         # Публикуем событие в Kafka
     publish_event(
-        topic="appointment-events",
+        topic="consultation-events",
         event={
             "event_type": "appointment_finished",
             "appointment_id": appointment.id,
@@ -224,7 +357,7 @@ def finish_appointment(
             Appointment.doctor_id == appointment.doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.appointment_time)
+        .order_by(Appointment.queue_number)
         .first()
     )
 
@@ -254,19 +387,32 @@ def get_appointment(
         duration_seconds = int(
             (appointment.finished_at - appointment.started_at).total_seconds()
         )
+    doctor = db.query(Doctor).filter(
+        Doctor.id == appointment.doctor_id
+    ).first()
+
+    if doctor is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Doctor not found"
+        )
 
     return {
-        "id": appointment.id,
-        "patient_id": appointment.patient_id,
-        "doctor_id": appointment.doctor_id,
-        "department_id": appointment.department_id,
-        "appointment_time": appointment.appointment_time,
-        "status": appointment.status,
-        "started_at": appointment.started_at,
-        "finished_at": appointment.finished_at,
-        "duration_seconds": duration_seconds,
-        "visit_type": appointment.visit_type,
-        "reason": appointment.reason
+    "id": appointment.id,
+    "patient_id": appointment.patient_id,
+    "doctor_id": appointment.doctor_id,
+    "doctor_name": doctor.name,
+    "room_number": doctor.room_number,
+    "department_id": appointment.department_id,
+    "appointment_time": appointment.appointment_time,
+    "status": appointment.status,
+    "queue_number": appointment.queue_number,
+    "complaint": appointment.complaint,
+    "started_at": appointment.started_at,
+    "finished_at": appointment.finished_at,
+    "duration_seconds": duration_seconds,
+    "visit_type": appointment.visit_type,
+    "reason": appointment.reason
     }
 
 @app.post("/appointments/{appointment_id}/waiting", response_model=AppointmentResponse)
@@ -292,6 +438,19 @@ def waiting_appointment(
 
     appointment.status = "WAITING"
 
+    publish_event(
+        topic="queue-events",
+        event={
+            "event_type": "appointment_waiting",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
+
+
     db.commit()
     db.refresh(appointment)
 
@@ -308,7 +467,7 @@ def get_doctor_queue(
             Appointment.doctor_id == doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.appointment_time)
+        .order_by(Appointment.queue_number)
         .all()
     )
 
@@ -325,7 +484,7 @@ def get_next_patient(
             Appointment.doctor_id == doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.appointment_time)
+        .order_by(Appointment.queue_number)
         .first()
     )
 
@@ -348,7 +507,7 @@ def start_next_patient(
             Appointment.doctor_id == doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.appointment_time)
+        .order_by(Appointment.queue_number)
         .first()
     )
 
@@ -363,6 +522,18 @@ def start_next_patient(
 
     db.commit()
     db.refresh(appointment)
+
+    publish_event(
+        topic="consultation-events",
+        event={
+            "event_type": "appointment_started",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "started_at": appointment.started_at,
+        }
+    )
 
     return appointment
 
@@ -388,6 +559,18 @@ def cancel_appointment(
         )
 
     appointment.status = "CANCELLED"
+
+    publish_event(
+        topic="appointment-events",
+        event={
+            "event_type": "appointment_cancelled",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
 
     db.commit()
     db.refresh(appointment)
@@ -417,6 +600,18 @@ def no_show_appointment(
         )
 
     appointment.status = "NO_SHOW"
+
+    publish_event(
+        topic="appointment-events",
+        event={
+            "event_type": "appointment_no_show",
+            "appointment_id": appointment.id,
+            "patient_id": appointment.patient_id,
+            "doctor_id": appointment.doctor_id,
+            "department_id": appointment.department_id,
+            "appointment_time": appointment.appointment_time,
+        }
+    )
 
     db.commit()
     db.refresh(appointment)

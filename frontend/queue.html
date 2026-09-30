@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Clinic - Очередь</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="card">
+
+        <h1>Smart Clinic</h1>
+
+        <p class="subtitle">
+            Электронная очередь
+        </p>
+
+
+        <label>
+            Номер записи (Appointment ID)
+        </label>
+
+        <input
+            id="appointmentId"
+            placeholder="Например: 14"
+        >
+
+
+        <button onclick="checkQueue()">
+            Проверить очередь
+        </button>
+
+
+        <div id="result" class="result hidden">
+
+            <h2>
+                Информация
+            </h2>
+
+
+            <p>
+                Ваш номер:
+                <strong>
+                    №<span id="queueNumber"></span>
+                </strong>
+            </p>
+
+
+            <p>
+                Статус:
+                <strong id="status"></strong>
+            </p>
+
+
+            <p>
+                Жалоба:
+                <span id="complaint"></span>
+            </p>
+
+
+            <p>
+                Врач:
+                <span id="doctor"></span>
+            </p>
+
+
+            <p>
+                Отделение:
+                <span id="department"></span>
+            </p>
+
+            <p>
+                Кабинет:
+                <span id="room"></span>
+            </p>
+
+        </div>
+
+
+    </div>
+
+</div>
+
+
+<script src="queue.js"></script>
+
+</body>
+
+</html>
