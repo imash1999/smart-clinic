@@ -1,2 +1,3 @@
 docker exec -it smart-clinic-postgres psql -U clinic -d clinic
 pip list | grep -E "SQLAlchemy|psycopg2|fastapi|uvicorn" #посмотреть библиотеки и версий
+docker compose up -d --build backend

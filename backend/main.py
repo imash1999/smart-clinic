@@ -397,6 +397,16 @@ def get_appointment(
             detail="Doctor not found"
         )
 
+    department = db.query(Department).filter(
+        Department.id == appointment.department_id
+    ).first()
+
+    if department is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Department not found"
+        )
+
     return {
     "id": appointment.id,
     "patient_id": appointment.patient_id,
@@ -404,6 +414,7 @@ def get_appointment(
     "doctor_name": doctor.name,
     "room_number": doctor.room_number,
     "department_id": appointment.department_id,
+    "department_name": department.name,
     "appointment_time": appointment.appointment_time,
     "status": appointment.status,
     "queue_number": appointment.queue_number,

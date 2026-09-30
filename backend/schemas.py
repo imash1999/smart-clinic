@@ -119,3 +119,12 @@ class RegistrationResponse(BaseModel):
     patient: PatientResponse
     appointment: AppointmentResponse
     specialty: str
+
+class QueueStatusResponse(BaseModel):
+    appointment_id: int
+    queue_number: int
+    status: str
+    people_ahead: int
+    current_queue_number: int | None
+    doctor_name: str
+    room_number: str | None

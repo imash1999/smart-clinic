@@ -48,7 +48,7 @@ async function checkQueue(){
         document
         .getElementById("department")
         .textContent =
-            data.department_id;
+            data.department_name;
         
         document
         .getElementById("room")
