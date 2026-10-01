@@ -36,48 +36,55 @@
 
 
         <div id="result" class="result hidden">
-
-            <h2>
-                Информация
-            </h2>
-
-
+            <h2>Информация об очереди</h2>
+            
             <p>
                 Ваш номер:
-                <strong>
-                    №<span id="queueNumber"></span>
-                </strong>
+                <strong>№<span id="queueNumber"></span></strong>
+            </p>
+            
+            <p>
+                Сейчас обслуживается:
+                <strong>№<span id="currentQueueNumber">-</span></strong>
             </p>
 
-
+            <p>
+                Следующий пациент:
+                <strong>№<span id="nextQueueNumber">-</span></strong>
+            </p>
+            
+            <p>
+                Перед вами ожидает:
+                <strong><span id="peopleAhead">-</span></strong>
+            </p>
+            
             <p>
                 Статус:
                 <strong id="status"></strong>
             </p>
-
-
+            
             <p>
                 Жалоба:
                 <span id="complaint"></span>
             </p>
-
-
+            
             <p>
                 Врач:
                 <span id="doctor"></span>
             </p>
-
-
+            
             <p>
                 Отделение:
                 <span id="department"></span>
             </p>
-
+            
             <p>
                 Кабинет:
                 <span id="room"></span>
             </p>
-
+            
+            <p id="lastUpdated"></p>
+            
         </div>
 
 

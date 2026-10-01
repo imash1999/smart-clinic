@@ -128,3 +128,4 @@ class QueueStatusResponse(BaseModel):
     current_queue_number: int | None
     doctor_name: str
     room_number: str | None
+    next_queue_number: int | None

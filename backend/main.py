@@ -20,7 +20,8 @@ from .schemas import (
     AppointmentFinish,
     AppointmentFinishResponse,
     RegistrationCreate,
-    RegistrationResponse
+    RegistrationResponse,
+    QueueStatusResponse
 )
 
 
@@ -507,6 +508,55 @@ def get_next_patient(
 
     return appointment
 
+@app.get("/doctors/{doctor_id}/current-patient")
+def get_current_patient(
+    doctor_id: int,
+    db: Session = Depends(get_db)
+):
+    appointment = (
+        db.query(Appointment)
+        .filter(
+            Appointment.doctor_id == doctor_id,
+            Appointment.status == "IN_PROGRESS"
+        )
+        .order_by(Appointment.queue_number)
+        .first()
+    )
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No patient is currently being examined"
+        )
+
+    patient = db.query(Patient).filter(
+        Patient.id == appointment.patient_id
+    ).first()
+
+    if patient is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
+
+    return {
+        "id": appointment.id,
+        "patient_id": patient.id,
+        "patient_name": patient.name,
+        "phone": patient.phone,
+        "address": patient.address,
+        "passport_series": patient.passport_series,
+        "doctor_id": appointment.doctor_id,
+        "department_id": appointment.department_id,
+        "queue_number": appointment.queue_number,
+        "status": appointment.status,
+        "complaint": appointment.complaint,
+        "started_at": appointment.started_at,
+        "finished_at": appointment.finished_at,
+        "visit_type": appointment.visit_type,
+        "reason": appointment.reason
+    }
+
 @app.post("/doctors/{doctor_id}/start-next")
 def start_next_patient(
     doctor_id: int,
@@ -628,3 +678,84 @@ def no_show_appointment(
     db.refresh(appointment)
 
     return appointment
+
+@app.get(
+    "/appointments/{appointment_id}/queue-status",
+    response_model=QueueStatusResponse
+)
+def get_queue_status(
+    appointment_id: int,
+    db: Session = Depends(get_db)
+):
+    appointment = db.query(Appointment).filter(
+        Appointment.id == appointment_id
+    ).first()
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Appointment not found"
+        )
+
+    if appointment.queue_number is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Appointment has no queue number"
+        )
+
+    doctor = db.query(Doctor).filter(
+        Doctor.id == appointment.doctor_id
+    ).first()
+
+    if doctor is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Doctor not found"
+        )
+
+    # Пациенты этого же врача, которые находятся
+    # перед текущим пациентом и реально ждут
+    people_ahead = db.query(Appointment).filter(
+        Appointment.doctor_id == appointment.doctor_id,
+        Appointment.queue_number < appointment.queue_number,
+        Appointment.status.in_(["ARRIVED", "WAITING"])
+    ).count()
+
+    # Пациент, которого врач сейчас принимает
+    current_patient = db.query(Appointment).filter(
+        Appointment.doctor_id == appointment.doctor_id,
+        Appointment.status == "IN_PROGRESS"
+    ).order_by(
+        Appointment.queue_number
+    ).first()
+
+    # Если сейчас никто не принимается,
+    # показываем первого ожидающего
+    if current_patient:
+        current_queue_number = current_patient.queue_number
+    else:
+        current_queue_number = None
+
+    next_patient = db.query(Appointment).filter(
+        Appointment.doctor_id == appointment.doctor_id,
+        Appointment.status.in_(["ARRIVED", "WAITING"])
+    ).order_by(
+        Appointment.queue_number
+    ).first()
+
+    next_queue_number = (
+        next_patient.queue_number
+        if next_patient
+        else None
+    )
+
+    return {
+        "appointment_id": appointment.id,
+        "queue_number": appointment.queue_number,
+        "status": appointment.status,
+        "people_ahead": people_ahead,
+        "current_queue_number": current_queue_number,
+        "doctor_name": doctor.name,
+        "room_number": doctor.room_number,
+        "next_queue_number": next_queue_number
+    }

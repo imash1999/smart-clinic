@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Clinic — Панель врача</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+
+        <h1>Smart Clinic</h1>
+        <p class="subtitle">Панель врача</p>
+
+        <div id="doctorInfo">
+            <p><strong>Врач:</strong> <span id="doctorName">Dr. Petrov</span></p>
+            <p><strong>Кабинет:</strong> <span id="doctorRoom">203</span></p>
+        </div>
+
+        <hr>
+        
+        <h2>Очередь</h2>
+
+        <div id="queue"></div>
+
+        <p id="message"></p>
+
+        <hr>
+
+        <div id="currentPatient">
+            <p>Загрузка текущего пациента...</p>
+        </div>
+
+    </div>
+</div>
+
+<script src="doctor.js"></script>
+
+</body>
+</html>
