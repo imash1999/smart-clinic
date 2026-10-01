@@ -159,8 +159,8 @@ async function loadCurrentPatient() {
                     <label>Результат / причина</label>
 
                     <textarea
-                        id="reason-${data.id}"
-                        placeholder="Введите результат приёма"
+                        id="diagnosis-${data.id}"
+                        placeholder="Введите диагноз"
                     ></textarea>
 
                     <button onclick="finishPatient(${data.id})">
@@ -236,7 +236,11 @@ async function finishPatient(appointmentId) {
         `reason-${appointmentId}`
     ).value.trim();
 
-    if (!visitType || !reason) {
+    const diagnosis = document.getElementById(
+        `diagnosis-${appointmentId}`
+    ).value.trim();
+
+    if (!visitType || !reason || !diagnosis) {
 
         alert("Заполните все поля");
 
@@ -254,7 +258,8 @@ async function finishPatient(appointmentId) {
                 },
                 body: JSON.stringify({
                     visit_type: visitType,
-                    reason: reason
+                    reason: reason,
+                    diagnosis: diagnosis
                 })
             }
         );

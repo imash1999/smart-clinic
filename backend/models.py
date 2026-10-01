@@ -45,6 +45,7 @@ class Appointment(Base):
 
     # Данные очереди
     queue_number = Column(Integer)
+    priority = Column(Integer, default=1)
 
     # Жалоба пациента при конкретном обращении
     complaint = Column(String(500))
@@ -52,7 +53,9 @@ class Appointment(Base):
     # Время консультации
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
+    duration_seconds = Column(Integer, nullable=True)
 
     # Результат консультации
     visit_type = Column(String(100))
     reason = Column(String(255))
+    diagnosis = Column(String(500))

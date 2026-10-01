@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from .kafka_producer import publish_event
 
+from backend.utils.priority import calculate_priority
 from .routing import determine_specialty
 from .database import Base, engine, get_db
 from .models import Patient,Doctor,Department,Appointment
@@ -145,6 +146,7 @@ def registration(
         appointment_time=datetime.now(),
         status="BOOKED",
         queue_number=queue_number,
+        priority=calculate_priority(registration.complaint),
         complaint=registration.complaint
     )
 
@@ -332,6 +334,7 @@ def finish_appointment(
     appointment.finished_at = datetime.now()
     appointment.visit_type = finish_data.visit_type
     appointment.reason = finish_data.reason
+    appointment.diagnosis = finish_data.diagnosis
 
     db.commit()
     db.refresh(appointment)
@@ -419,12 +422,14 @@ def get_appointment(
     "appointment_time": appointment.appointment_time,
     "status": appointment.status,
     "queue_number": appointment.queue_number,
+    "priority": appointment.priority,
     "complaint": appointment.complaint,
     "started_at": appointment.started_at,
     "finished_at": appointment.finished_at,
     "duration_seconds": duration_seconds,
     "visit_type": appointment.visit_type,
-    "reason": appointment.reason
+    "reason": appointment.reason,
+    "diagnosis": appointment.diagnosis
     }
 
 @app.post("/appointments/{appointment_id}/waiting", response_model=AppointmentResponse)
@@ -479,7 +484,10 @@ def get_doctor_queue(
             Appointment.doctor_id == doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.queue_number)
+        .order_by(
+            Appointment.priority.desc(),
+            Appointment.queue_number.asc()
+        )
         .all()
     )
 
@@ -568,7 +576,10 @@ def start_next_patient(
             Appointment.doctor_id == doctor_id,
             Appointment.status == "WAITING"
         )
-        .order_by(Appointment.queue_number)
+        .order_by(
+            Appointment.priority.desc(),
+            Appointment.queue_number.asc()
+        )
         .first()
     )
 
@@ -759,3 +770,225 @@ def get_queue_status(
         "room_number": doctor.room_number,
         "next_queue_number": next_queue_number
     }
+
+@app.get("/patients/{patient_id}/history")
+def get_patient_history(
+    patient_id: int,
+    db: Session = Depends(get_db)
+):
+
+    appointments = (
+        db.query(Appointment)
+        .filter(
+            Appointment.patient_id == patient_id,
+            Appointment.status == "COMPLETED"
+        )
+        .order_by(Appointment.finished_at.desc())
+        .all()
+    )
+
+
+    result = []
+
+    for appointment in appointments:
+
+        doctor = (
+            db.query(Doctor)
+            .filter(
+                Doctor.id == appointment.doctor_id
+            )
+            .first()
+        )
+
+        department = (
+            db.query(Department)
+            .filter(
+                Department.id == appointment.department_id
+            )
+            .first()
+        )
+
+
+        result.append({
+
+            "id": appointment.id,
+
+            "finished_at": appointment.finished_at,
+
+            "complaint": appointment.complaint,
+
+            "visit_type": appointment.visit_type,
+
+            "reason": appointment.reason,
+
+            "diagnosis": appointment.diagnosis,
+
+            "doctor_name":
+                doctor.name if doctor else "-",
+
+            "department_name":
+                department.name if department else "-"
+
+        })
+
+
+    return result
+
+@app.get("/patients/search")
+def search_patient(
+    phone: str,
+    db: Session = Depends(get_db)
+):
+
+    patient = (
+        db.query(Patient)
+        .filter(
+            Patient.phone == phone
+        )
+        .first()
+    )
+
+    if patient is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Patient not found"
+        )
+
+    return patient
+
+@app.get("/analytics/summary")
+def get_summary(
+    db: Session = Depends(get_db)
+):
+
+    total_patients = (
+        db.query(Patient)
+        .count()
+    )
+
+
+    total_appointments = (
+        db.query(Appointment)
+        .count()
+    )
+
+
+    completed = (
+        db.query(Appointment)
+        .filter(
+            Appointment.status == "COMPLETED"
+        )
+        .count()
+    )
+
+
+    waiting = (
+        db.query(Appointment)
+        .filter(
+            Appointment.status == "WAITING"
+        )
+        .count()
+    )
+
+
+    return {
+        "total_patients": total_patients,
+        "total_appointments": total_appointments,
+        "completed": completed,
+        "waiting": waiting
+    }
+
+@app.get("/analytics/doctors")
+def get_doctor_analytics(
+    db: Session = Depends(get_db)
+):
+
+    doctors = db.query(Doctor).all()
+
+    result = []
+
+    for doctor in doctors:
+
+        appointments = (
+            db.query(Appointment)
+            .filter(
+                Appointment.doctor_id == doctor.id,
+                Appointment.status == "COMPLETED"
+            )
+            .all()
+        )
+
+        total = len(appointments)
+
+        durations = [
+            a.duration_seconds
+            for a in appointments
+            if a.duration_seconds
+        ]
+
+        avg_duration = None
+
+        if durations:
+            avg_duration = sum(durations) / len(durations)
+
+
+        result.append({
+
+            "doctor_name": doctor.name,
+
+            "completed_visits": total,
+
+            "average_duration_seconds":
+                round(avg_duration, 2)
+                if avg_duration else 0
+
+        })
+
+
+    return result
+
+@app.get("/analytics/departments")
+def get_department_analytics(
+    db: Session = Depends(get_db)
+):
+
+    departments = db.query(Department).all()
+
+    result = []
+
+    for department in departments:
+
+        appointments = (
+            db.query(Appointment)
+            .filter(
+                Appointment.department_id == department.id
+            )
+            .all()
+        )
+
+        completed = [
+            a for a in appointments
+            if a.status == "COMPLETED"
+        ]
+
+        durations = [
+            a.duration_seconds
+            for a in completed
+            if a.duration_seconds
+        ]
+
+        avg_duration = 0
+
+        if durations:
+            avg_duration = sum(durations) / len(durations)
+
+
+        result.append({
+            "department_name": department.name,
+            "total_visits": len(appointments),
+            "completed_visits": len(completed),
+            "average_duration_seconds": round(avg_duration, 2)
+        })
+
+
+    return result

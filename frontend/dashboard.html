@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Clinic Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }
+        
+        
+        .cards {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        
+        .card {
+            padding: 20px;
+            border-radius: 10px;
+            width: 180px;
+            background: #f2f2f2;
+        }
+        
+        
+        .card h3 {
+            margin: 0;
+        }
+        
+        
+        .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        
+        .result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            background: #f7f7f7;
+        }
+        
+        .charts {
+            display: flex;
+            gap: 40px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+
+        canvas {
+            max-width: 500px;
+            max-height: 300px;
+        }
+        
+        </style>
+</head>
+
+<body>
+
+<h1>Smart Clinic Analytics</h1>
+
+
+<div id="summary"></div>
+
+
+<h2>Врачи</h2>
+<div id="doctors"></div>
+
+
+<h2>Отделения</h2>
+<div id="departments"></div>
+
+<<h2>Графики</h2>
+
+<div class="charts">
+
+    <canvas id="doctorChart"></canvas>
+
+    <canvas id="departmentChart"></canvas>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="dashboard.js"></script>
+
+</body>
+</html>

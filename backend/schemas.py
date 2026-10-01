@@ -71,6 +71,8 @@ class AppointmentResponse(BaseModel):
     finished_at: datetime | None
     visit_type: str | None
     reason: str | None
+    diagnosis: str | None
+    priority: int
 
     class Config:
         from_attributes = True
@@ -93,6 +95,8 @@ class AppointmentDetailResponse(BaseModel):
     duration_seconds: int | None
     visit_type: str | None
     reason: str | None
+    diagnosis: str | None
+    priority: int
 
     class Config:
         from_attributes = True
@@ -101,6 +105,7 @@ class AppointmentDetailResponse(BaseModel):
 class AppointmentFinish(BaseModel):
     visit_type: str
     reason: str
+    diagnosis: str
 
 
 class AppointmentFinishResponse(BaseModel):
