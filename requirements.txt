@@ -4,4 +4,4 @@ sqlalchemy
 psycopg2-binary
 psycopg[binary]
 kafka-python==3.0.11
-#requests
+requests

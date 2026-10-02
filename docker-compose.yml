@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: smart-clinic-postgres
+    container_name: postgres
     environment:
       POSTGRES_USER: clinic
       POSTGRES_PASSWORD: clinic123
@@ -11,7 +11,7 @@ services:
 
   kafka:
     image: apache/kafka:3.7.0
-    container_name: smart-clinic-kafka
+    container_name: kafka
     ports:
       - "9092:9092"
     environment:
@@ -31,7 +31,7 @@ services:
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    container_name: smart-clinic-kafka-ui
+    container_name: kafka-ui
     ports:
       - "8080:8080"
     environment:
@@ -42,7 +42,7 @@ services:
 
   consumer:
     build: .
-    container_name: smart-clinic-consumer
+    container_name: consumer
     command: python backend/kafka_consumer.py
     depends_on:
       - kafka
@@ -52,7 +52,7 @@ services:
 
   backend:
     build: .
-    container_name: smart-clinic-backend
+    container_name: backend
     ports:
       - "8000:8000"
     environment:
@@ -62,7 +62,7 @@ services:
 
   frontend:
     image: nginx:alpine
-    container_name: smart-clinic-frontend
+    container_name: frontend
     ports:
       - "5500:80"
     volumes:
@@ -70,5 +70,25 @@ services:
     depends_on:
       - backend
 
+  patient-generator:
+    build: .
+    container_name: patient-generator
+    command: python -u scripts/patient_generator.py
+    environment:
+      BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+
+  doctor-simulator:
+    build: .
+    container_name: doctor-simulator
+    command: python -u scripts/doctor_simulator.py
+    environment:
+      BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
+
+  
