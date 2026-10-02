@@ -40,6 +40,15 @@ services:
     depends_on:
       - kafka
 
+  consumer:
+    build: .
+    container_name: smart-clinic-consumer
+    command: python backend/kafka_consumer.py
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
 
   backend:
     build: .
@@ -50,6 +59,16 @@ services:
       DATABASE_URL: postgresql://clinic:clinic123@postgres:5432/clinic
     depends_on:
       - postgres
+
+  frontend:
+    image: nginx:alpine
+    container_name: smart-clinic-frontend
+    ports:
+      - "5500:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

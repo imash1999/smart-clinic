@@ -45,7 +45,7 @@ class Appointment(Base):
 
     # Данные очереди
     queue_number = Column(Integer)
-    priority = Column(Integer, default=1)
+    priority = Column(Integer, default=1)   
 
     # Жалоба пациента при конкретном обращении
     complaint = Column(String(500))

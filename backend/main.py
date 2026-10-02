@@ -158,6 +158,20 @@ def registration(
     db.refresh(new_patient)
     db.refresh(new_appointment)
 
+    publish_event(
+        topic="patient-events",
+        event={
+            "event_type": "patient_registered",
+            "patient_id": new_patient.id,
+            "appointment_id": new_appointment.id,
+            "doctor_id": doctor.id,
+            "department_id": department.id,
+            "specialty": specialty,
+            "complaint": registration.complaint,
+            "queue_number": queue_number
+        }
+    )
+
     return {
         "patient": new_patient,
         "appointment": new_appointment,
