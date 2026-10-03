@@ -47,6 +47,7 @@ def home():
 def create_patient(patient: PatientCreate, db: Session = Depends(get_db)):
     new_patient = Patient(
         name=patient.name,
+        age=patient.age,
         phone=patient.phone,
         address=patient.address,
         passport_series=patient.passport_series
@@ -84,7 +85,7 @@ def registration(
             detail=f"No doctor found for specialty: {specialty}"
         )
 
-    # 3. Ищем отделение с соответствующим названием
+    # 3. Ищем отделение
     department_names = {
         "Therapist": "Therapy",
         "Cardiologist": "Cardiology",
@@ -111,18 +112,55 @@ def registration(
             detail=f"Department not found: {department_name}"
         )
 
-    # 4. Создаём пациента
-    new_patient = Patient(
-        name=registration.name,
-        phone=registration.phone,
-        address=registration.address,
-        passport_series=registration.passport_series
-    )
+    # 4. Ищем существующего пациента
+    existing_patient = None
 
-    db.add(new_patient)
-    db.flush()
+    # Сначала ищем по номеру телефона.
+    # Для нашего проекта это надёжнее, чем passport_series,
+    # потому что тестовый генератор раньше создавал одинаковые AUTO-паспорта.
+    if registration.phone:
+        existing_patient = (
+            db.query(Patient)
+            .filter(Patient.phone == registration.phone)
+            .order_by(Patient.id.asc())
+            .first()
+        )
 
-    # 5. Получаем следующий номер очереди этого врача
+    # Если пациента по телефону нет, ищем по passport_series.
+    if existing_patient is None and registration.passport_series:
+        existing_patient = (
+            db.query(Patient)
+            .filter(
+                Patient.passport_series == registration.passport_series
+            )
+            .order_by(Patient.id.asc())
+            .first()
+        )
+
+    # 5. Если пациент новый — создаём его.
+    if existing_patient is None:
+        patient = Patient(
+            name=registration.name,
+            age=registration.age,
+            phone=registration.phone,
+            address=registration.address,
+            passport_series=registration.passport_series
+        )
+
+        db.add(patient)
+        db.flush()
+
+    # 6. Если пациент уже существует — используем его ID.
+    else:
+        patient = existing_patient
+
+        patient.name = registration.name
+        patient.age = registration.age
+        patient.phone = registration.phone
+        patient.address = registration.address
+        patient.passport_series = registration.passport_series
+
+    # 7. Получаем следующий номер очереди этого врача
     last_appointment = (
         db.query(Appointment)
         .filter(
@@ -138,9 +176,9 @@ def registration(
     else:
         queue_number = 1
 
-    # 6. Создаём запись на приём
+    # 8. Создаём новый приём
     new_appointment = Appointment(
-        patient_id=new_patient.id,
+        patient_id=patient.id,
         doctor_id=doctor.id,
         department_id=department.id,
         appointment_time=datetime.now(),
@@ -152,17 +190,18 @@ def registration(
 
     db.add(new_appointment)
 
-    # 7. Сохраняем пациента и запись
+    # 9. Сохраняем изменения
     db.commit()
 
-    db.refresh(new_patient)
+    db.refresh(patient)
     db.refresh(new_appointment)
 
+    # 10. Отправляем событие в Kafka
     publish_event(
         topic="patient-events",
         event={
             "event_type": "patient_registered",
-            "patient_id": new_patient.id,
+            "patient_id": patient.id,
             "appointment_id": new_appointment.id,
             "doctor_id": doctor.id,
             "department_id": department.id,
@@ -173,7 +212,7 @@ def registration(
     )
 
     return {
-        "patient": new_patient,
+        "patient": patient,
         "appointment": new_appointment,
         "specialty": specialty
     }
@@ -346,6 +385,10 @@ def finish_appointment(
 
     appointment.status = "COMPLETED"
     appointment.finished_at = datetime.now()
+    if appointment.started_at:
+        appointment.duration_seconds = int(
+            (appointment.finished_at - appointment.started_at).total_seconds()
+        )
     appointment.visit_type = finish_data.visit_type
     appointment.reason = finish_data.reason
     appointment.diagnosis = finish_data.diagnosis
@@ -365,6 +408,7 @@ def finish_appointment(
             "finished_at": appointment.finished_at,
             "visit_type": appointment.visit_type,
             "reason": appointment.reason,
+            "diagnosis": appointment.diagnosis,
         }
     )
 
@@ -817,7 +861,7 @@ def get_patient_history(
         department = (
             db.query(Department)
             .filter(
-                Department.id == appointment.department_id
+                    Department.id == appointment.department_id
             )
             .first()
         )

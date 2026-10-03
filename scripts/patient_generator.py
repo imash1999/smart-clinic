@@ -36,6 +36,7 @@ def generate_patient(index):
 
     return {
         "name": random.choice(names),
+        "age": random.randint(18, 70),
         "phone": f"+998901{random.randint(100000,999999)}",
         "address": "Tashkent",
         "passport_series": f"AUTO{index:06d}",

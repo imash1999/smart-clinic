@@ -4,6 +4,7 @@ from datetime import datetime
 
 class PatientCreate(BaseModel):
     name: str
+    age: int
     phone: str
     address: str | None = None
     passport_series: str | None = None
@@ -12,6 +13,7 @@ class PatientCreate(BaseModel):
 class PatientResponse(BaseModel):
     id: int
     name: str
+    age: int
     phone: str
     address: str | None
     passport_series: str | None
@@ -114,6 +116,7 @@ class AppointmentFinishResponse(BaseModel):
 
 class RegistrationCreate(BaseModel):
     name: str
+    age: int
     phone: str
     address: str
     passport_series: str

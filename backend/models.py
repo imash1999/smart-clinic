@@ -10,6 +10,7 @@ class Patient(Base):
 
     # Основная информация о пациенте
     name = Column(String(100), nullable=False)
+    age = Column(Integer)
     phone = Column(String(30), nullable=False)
     address = Column(String(255))
     passport_series = Column(String(50))
